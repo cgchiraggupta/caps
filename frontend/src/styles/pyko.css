@@ -1,0 +1,707 @@
+/* === Pyko Design Tokens (from DESIGN.md + code.html) === */
+:root {
+    --pyko-bg: #f4f5f0;
+    --pyko-text: #1a1a1a;
+    --pyko-moss: #4a5d23;
+    --pyko-moss-light: rgba(74, 93, 35, 0.06);
+    --pyko-moss-border: rgba(74, 93, 35, 0.15);
+    --pyko-glass: rgba(255, 255, 255, 0.4);
+    --pyko-glass-hover: rgba(255, 255, 255, 0.6);
+    --pyko-glass-border: rgba(0, 0, 0, 0.05);
+    --pyko-glass-border-strong: rgba(0, 0, 0, 0.1);
+    --pyko-text-muted: rgba(26, 26, 26, 0.5);
+    --pyko-text-soft: rgba(26, 26, 26, 0.7);
+    --pyko-accent: #c0c1ff;
+    --pyko-glow-primary: rgba(192, 193, 255, 0.2);
+    --pyko-secondary-fixed-dim: #ffb690;
+    --pyko-tertiary: #dbe2fc;
+    --pyko-surface-container: #122131;
+    --pyko-radius-pill: 9999px;
+    --pyko-radius-xl: 2.5rem;
+    --pyko-radius-2xl: 3.5rem;
+    --pyko-radius-3xl: 4rem;
+    --pyko-radius-md: 0.75rem;
+    --pyko-radius-sm: 0.5rem;
+    --pyko-radius-xs: 0.25rem;
+    --pyko-shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.04);
+    --pyko-shadow-md: 0 12px 40px rgba(0, 0, 0, 0.06);
+    --pyko-shadow-lg: 0 30px 60px -12px rgba(0, 0, 0, 0.12);
+    --pyko-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --pyko-stack-sm: 12px;
+    --pyko-stack-md: 24px;
+    --pyko-stack-lg: 64px;
+    --pyko-gutter: 24px;
+    --pyko-container-padding: 40px;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background-color: var(--pyko-bg);
+    color: var(--pyko-text);
+    font-family: "Inter", sans-serif;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.font-serif { font-family: "Playfair Display", serif; }
+.font-mono { font-family: "JetBrains Mono", "SF Mono", "Fira Code", monospace; }
+
+/* === Glass panel === */
+.pyko-glass-panel {
+    border-radius: var(--pyko-radius-xl);
+    padding: 1.75rem;
+    background: var(--pyko-glass);
+    border: 1px solid var(--pyko-glass-border);
+    box-shadow: var(--pyko-shadow-sm);
+    transition: all 0.4s var(--pyko-ease);
+}
+
+.pyko-glass-panel:hover {
+    background: var(--pyko-glass-hover);
+    border-color: var(--pyko-glass-border-strong);
+    box-shadow: var(--pyko-shadow-md);
+}
+
+.pyko-glass-panel-inset {
+    background: var(--pyko-glass);
+    border: 1px solid var(--pyko-glass-border);
+    border-radius: var(--pyko-radius-xl);
+    padding: 1.25rem;
+    transition: all 0.4s var(--pyko-ease);
+}
+
+/* === Status card (from render_status) === */
+.status-shell {
+    margin-top: 1rem;
+}
+
+.status-card {
+    padding: 1.25rem 1.5rem;
+    border-radius: var(--pyko-radius-xl);
+    transition: all 0.4s var(--pyko-ease);
+}
+
+.status-ready {
+    background: var(--pyko-moss-light);
+    border: 1px solid var(--pyko-moss-border);
+    color: var(--pyko-text);
+}
+
+.status-success {
+    background: rgba(74, 93, 35, 0.08);
+    border: 1px solid var(--pyko-moss-border);
+    color: var(--pyko-text);
+}
+
+.status-error {
+    background: rgba(185, 28, 28, 0.06);
+    border: 1px solid rgba(185, 28, 28, 0.2);
+    color: #b91c1c;
+}
+
+.status-warning {
+    background: rgba(217, 119, 6, 0.08);
+    border: 1px solid rgba(217, 119, 6, 0.2);
+    color: #92400e;
+}
+
+.status-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--pyko-text-muted);
+}
+
+.status-title {
+    font-family: "Playfair Display", serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0.25rem 0;
+}
+
+.status-message {
+    font-size: 0.875rem;
+    opacity: 0.8;
+    line-height: 1.5;
+}
+
+/* === Buttons === */
+.pyko-solid-button {
+    border-radius: var(--pyko-radius-pill);
+    padding: 1.25rem 2.5rem;
+    border: 1px solid var(--pyko-moss);
+    background: var(--pyko-moss);
+    color: #ffffff;
+    font-family: "Inter", sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 20px 35px rgba(0, 0, 0, 0.1);
+    transition: all 0.35s var(--pyko-ease);
+}
+
+.pyko-solid-button:hover {
+    background: #000000;
+    border-color: #000000;
+    transform: scale(1.05);
+}
+
+.pyko-solid-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.pyko-outline-button {
+    border-radius: var(--pyko-radius-pill);
+    padding: 1.25rem 2.5rem;
+    border: 1px solid var(--pyko-glass-border-strong);
+    background: transparent;
+    color: var(--pyko-text);
+    font-family: "Inter", sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.35s var(--pyko-ease);
+}
+
+.pyko-outline-button:hover {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.3);
+}
+
+.pyko-outline-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* === Form elements === */
+.pyko-input,
+.pyko-select {
+    width: 100%;
+    border-radius: var(--pyko-radius-pill);
+    border: 1px solid var(--pyko-glass-border-strong);
+    background: var(--pyko-glass);
+    padding: 0.75rem 1.25rem;
+    font-family: "Inter", sans-serif;
+    font-size: 0.875rem;
+    color: var(--pyko-text);
+    transition: all 0.3s var(--pyko-ease);
+}
+
+.pyko-input:focus,
+.pyko-select:focus {
+    outline: none;
+    border-color: var(--pyko-moss);
+    background: rgba(255, 255, 255, 0.6);
+    box-shadow: 0 0 0 3px var(--pyko-moss-light);
+}
+
+.pyko-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--pyko-text-soft);
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+/* === File upload / dropzone === */
+.pyko-dropzone {
+    border: 2px dashed var(--pyko-glass-border-strong);
+    border-radius: var(--pyko-radius-xl);
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    background: var(--pyko-glass);
+    transition: all 0.3s var(--pyko-ease);
+}
+
+.pyko-dropzone:hover,
+.pyko-dropzone.active {
+    border-color: var(--pyko-moss);
+    background: var(--pyko-moss-light);
+}
+
+.pyko-dropzone p {
+    margin: 0.5rem 0;
+    color: var(--pyko-text-soft);
+    font-size: 0.875rem;
+}
+
+.pyko-dropzone .drop-icon {
+    font-size: 2.5rem;
+    opacity: 0.5;
+}
+
+/* === Nav === */
+.pyko-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.7);
+    border-bottom: 1px solid var(--pyko-glass-border);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.05);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    transition: all 0.5s var(--pyko-ease);
+}
+
+.pyko-nav-inner {
+    width: min(100%, 1280px);
+    height: 100%;
+    margin: 0 auto;
+    padding: 0 var(--pyko-container-padding);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.pyko-brand {
+    font-family: "Playfair Display", serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.pyko-nav-links,
+.pyko-nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.pyko-nav-actions {
+    gap: 1rem;
+}
+
+.pyko-nav a,
+.pyko-login {
+    color: var(--pyko-text-muted);
+    text-decoration: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    font-family: "Inter", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    transition: color 0.3s ease;
+}
+
+.pyko-nav a:hover,
+.pyko-login:hover {
+    color: var(--pyko-text);
+}
+
+.pyko-nav a.active {
+    color: var(--pyko-text);
+    border-bottom: 2px solid var(--pyko-moss);
+    padding-bottom: 0.25rem;
+}
+
+.pyko-nav-cta {
+    border: 0;
+    border-radius: var(--pyko-radius-pill);
+    background: var(--pyko-text);
+    color: #ffffff;
+    padding: 0.625rem 1.5rem;
+    font-family: "Inter", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s var(--pyko-ease);
+}
+
+.pyko-nav-cta:hover {
+    transform: scale(1.05);
+    background: #000000;
+}
+
+/* === Layout === */
+.pyko-container {
+    width: min(100%, 1280px);
+    margin: 0 auto;
+    padding: 0 var(--pyko-container-padding);
+}
+
+.pyko-main {
+    margin-top: 80px;
+    padding: var(--pyko-stack-lg) 0;
+}
+
+/* === Tabs === */
+.pyko-tabs {
+    background: var(--pyko-glass);
+    border: 1px solid var(--pyko-glass-border);
+    border-radius: var(--pyko-radius-xl);
+    padding: 1rem;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.pyko-tab-nav {
+    display: flex;
+    gap: 0.75rem;
+    border: 0;
+    margin-bottom: 1.5rem;
+}
+
+.pyko-tab {
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--pyko-radius-pill);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--pyko-text-soft);
+    font-family: "Inter", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s var(--pyko-ease);
+}
+
+.pyko-tab:hover {
+    background: var(--pyko-glass-hover);
+    border-color: var(--pyko-glass-border);
+}
+
+.pyko-tab.active {
+    background: #ffffff;
+    border-color: var(--pyko-glass-border-strong);
+    color: var(--pyko-text);
+    box-shadow: var(--pyko-shadow-sm);
+}
+
+.pyko-tab-content {
+    display: none;
+}
+
+.pyko-tab-content.active {
+    display: block;
+}
+
+/* === Card layout === */
+.pyko-workflow-card,
+.pyko-control-card,
+.pyko-result-row {
+    border-radius: var(--pyko-radius-xl);
+    background: var(--pyko-glass);
+    border: 1px solid var(--pyko-glass-border);
+    padding: 1.75rem;
+    box-shadow: var(--pyko-shadow-sm);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.pyko-control-card {
+    margin-top: 1rem;
+}
+
+.pyko-result-row {
+    margin-top: 1rem;
+}
+
+/* === Hero === */
+.pyko-hero {
+    position: relative;
+    padding: var(--pyko-stack-lg) 0;
+}
+
+.pyko-hero h1 {
+    font-family: "Playfair Display", serif;
+    font-size: clamp(3rem, 6vw, 4.5rem);
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    font-weight: 700;
+    margin: 0;
+}
+
+.pyko-hero p.sub {
+    font-size: 1.125rem;
+    line-height: 1.75;
+    color: var(--pyko-text-soft);
+    max-width: 36rem;
+    font-weight: 400;
+}
+
+/* === Flex / Grid utilities === */
+.pyko-row {
+    display: flex;
+    gap: var(--pyko-stack-md);
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.pyko-col {
+    flex: 1;
+    min-width: 280px;
+}
+
+.pyko-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--pyko-stack-md);
+}
+
+.pyko-flex-center {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.pyko-flex-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* === Progress bar === */
+.progress-bar-track {
+    width: 100%;
+    height: 4px;
+    border-radius: var(--pyko-radius-pill);
+    background: var(--pyko-glass-border-strong);
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    border-radius: var(--pyko-radius-pill);
+    background: var(--pyko-moss);
+    transition: width 0.8s var(--pyko-ease);
+}
+
+/* === Chip === */
+.pyko-chip {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--pyko-text-muted);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: var(--pyko-radius-pill);
+    padding: 0.25rem 1rem;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+/* === Misc === */
+.caps-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--pyko-text-soft);
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.italic {
+    font-style: italic;
+}
+
+/* === Animations === */
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pyko-fade-in {
+    animation: fadeUp 0.6s var(--pyko-ease) forwards;
+}
+
+.pyko-fade-in-delay {
+    animation: fadeUp 0.8s 0.3s var(--pyko-ease) forwards;
+    opacity: 0;
+}
+
+/* === Footer === */
+.pyko-footer {
+    margin-top: var(--pyko-stack-lg);
+    padding: var(--pyko-stack-lg) 0;
+    border-top: 1px solid var(--pyko-glass-border);
+    border-radius: var(--pyko-radius-3xl) var(--pyko-radius-3xl) 0 0;
+    background: var(--pyko-bg);
+}
+
+.pyko-footer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--pyko-stack-md);
+}
+
+.pyko-footer h4 {
+    font-family: "Inter", sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--pyko-text-muted);
+    margin: 0 0 0.5rem;
+}
+
+.pyko-footer ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.pyko-footer a {
+    color: var(--pyko-text-soft);
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: color 0.25s ease;
+}
+
+.pyko-footer a:hover {
+    color: var(--pyko-text);
+}
+
+/* === File preview === */
+.pyko-file-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--pyko-glass);
+    border-radius: var(--pyko-radius-xl);
+    border: 1px solid var(--pyko-glass-border);
+    margin-top: 0.5rem;
+}
+
+.pyko-file-preview .file-name {
+    flex: 1;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pyko-file-preview .file-remove {
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    color: var(--pyko-text-muted);
+    font-size: 1.25rem;
+    line-height: 1;
+    padding: 0;
+}
+
+.pyko-file-preview .file-remove:hover {
+    color: #b91c1c;
+}
+
+/* === Settings row === */
+.pyko-settings-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.pyko-settings-row > * {
+    flex: 1;
+    min-width: 140px;
+}
+
+/* === Section header === */
+.pyko-section-kicker {
+    margin: 0 0 1.5rem;
+    color: var(--pyko-moss);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+}
+
+.pyko-section-title {
+    margin: 0;
+    color: var(--pyko-text);
+    font-family: "Playfair Display", serif;
+    font-size: clamp(3rem, 4.8vw, 4rem);
+    line-height: 1.1;
+    font-weight: 600;
+}
+
+/* === Spinner === */
+.pyko-spinner {
+    display: inline-block;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 2px solid var(--pyko-glass-border-strong);
+    border-top-color: var(--pyko-moss);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* === Checkbox / Toggle === */
+.pyko-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: var(--pyko-text-soft);
+}
+
+.pyko-checkbox-label input[type="checkbox"] {
+    width: 1.125rem;
+    height: 1.125rem;
+    accent-color: var(--pyko-moss);
+    border-radius: 0.25rem;
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+    :root {
+        --pyko-container-padding: 20px;
+    }
+
+    .pyko-nav-links {
+        display: none;
+    }
+
+    .pyko-main {
+        margin-top: 72px;
+    }
+
+    .pyko-settings-row > * {
+        min-width: 100%;
+    }
+}

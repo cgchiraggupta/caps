@@ -1,45 +1,41 @@
-# Virtual environment
-venv/
-env/
-.venv/
-
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
-# Logs and temp output
-app.log
-nohup.out
+# Local environments
+.venv/
+.venv-align/
+venv/
+env/
+
+# Node
+frontend/node_modules/
+frontend/.vite/
+frontend/tsconfig.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local runtime data and generated outputs
+.nltk_data/
+custom_replacements.json
 *.srt
+*.vtt
+*.ass
+*.zip
+*.mp4
+*.mov
+*.mkv
+*.wav
+*.mp3
 
-# Screenshots and debug files
-screenshot_error.png
-
-# Editor and agent directories
-.agent/
-.agents/
-.claude/
-.windsurf/
-.vscode/
-.idea/
-
-# Misc project files
-skills-lock.json
-
-# Malformed pip install artifacts (e.g. pip install >=x.x.x without quotes)
-=*
-
-# macOS
+# OS and editor files
 .DS_Store
-.AppleDouble
-.LSOverride
-
-# HuggingFace model cache (large, auto-downloaded on first run)
-.cache/
-
-# Environment variables
-.env
-.env.local
+Thumbs.db
+.idea/
+.vscode/

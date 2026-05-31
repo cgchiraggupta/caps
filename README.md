@@ -1,298 +1,91 @@
-# HinglishCaps
+# HinglishCapsV3
 
-HinglishCaps is a local-first captioning tool for Hindi, English, and Hinglish videos.
+HinglishCapsV3 is a FastAPI plus React caption studio for generating Hinglish subtitle files from videos. It keeps the proven Whisper caption pipeline from the earlier project and serves a custom Pyko-styled dashboard without Gradio UI wrappers.
 
-It generates subtitle files you can import into editors like CapCut, DaVinci Resolve, Premiere Pro, and Final Cut Pro.
+## What It Does
 
-This project is designed to run on your own machine. The transcription model is large, so local use is the most reliable path.
+- Generates one `.srt` caption file for a single video.
+- Generates one `.zip` file for batch video processing.
+- Supports Whisper Large v3 and Whisper Large v3 Turbo engine choices.
+- Uses word-level timestamps, readable chunking, line-length limits, minimum duration rules, and subtitle offset controls.
+- Supports optional custom phrase replacement dictionaries.
+- Serves the built React frontend from FastAPI at `http://127.0.0.1:8000`.
 
-## What it does
-
-- Generate captions for a single video
-- Process multiple videos in one batch
-- Export standard `.srt` files
-- Optionally generate shorter word-level subtitle chunks
-
-Powered by [Oriserve/Whisper-Hindi2Hinglish-Apex](https://huggingface.co/Oriserve/Whisper-Hindi2Hinglish-Apex), a Whisper checkpoint fine-tuned for Hinglish and Indian speech patterns.
-
-## Important: use Python 3.12
-
-For the current dependency stack, the recommended version is **Python 3.12**.
-
-Please avoid:
-- Python 3.13
-- Python 3.14
-
-Those newer versions can fail during dependency installation or app startup.
-
-## Easiest way to use HinglishCaps
-
-Run the local web app:
-
-```bash
-python app_full.py
-```
-
-Then open:
+## Project Structure
 
 ```text
-http://127.0.0.1:7860
+api/                       FastAPI app, routes, schemas, job manager
+backend/                   Caption service wrapper, presets, status messages
+frontend/                  React and Vite frontend
+frontend/dist/             Built frontend served by FastAPI
+batch.py                   Main transcription and caption pipeline
+forced_align_worker.py     Isolated WhisperX alignment worker
+requirements_full.txt      Full runtime dependency set
+requirements_align.txt     Optional isolated forced-alignment dependencies
+start.bat                  Windows startup script
+start.sh                   Bash startup script
 ```
 
-## System requirements
-
-- Python 3.12
-- FFmpeg installed and available in `PATH`
-- 8 GB RAM minimum
-- Internet connection on first run to download the model
-
-## macOS setup
-
-### 1. Install Python 3.12
-
-Option A: python.org
-- Download Python 3.12 from [python.org](https://www.python.org/downloads/macos/)
-
-Option B: Homebrew
-
-```bash
-brew install python@3.12
-```
-
-Check it:
-
-```bash
-python3.12 --version
-```
-
-### 2. Install FFmpeg
-
-```bash
-brew install ffmpeg
-```
-
-Check it:
-
-```bash
-ffmpeg -version
-```
-
-### 3. Download this project
-
-```bash
-git clone https://github.com/cgchiraggupta/toolazytoaddcaptions.git
-cd toolazytoaddcaptions
-```
-
-### 4. Create a virtual environment
-
-```bash
-python3.12 -m venv venv
-source venv/bin/activate
-```
-
-### 5. Install dependencies
-
-For the web app:
-
-```bash
-pip install --upgrade pip
-pip install -r requirements_full.txt
-```
-
-For command-line only usage:
-
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 6. Launch the app
-
-```bash
-python app_full.py
-```
-
-Open:
-
-```text
-http://127.0.0.1:7860
-```
-
-## Windows setup
-
-### 1. Install Python 3.12
-
-- Download **Python 3.12** from [python.org](https://www.python.org/downloads/windows/)
-- During installation, check `Add Python to PATH`
-
-Check it:
+## Quick Start On Windows
 
 ```powershell
-py -3.12 --version
+cd "C:\path\to\HinglishCapsV3"
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements_full.txt
+.\start.bat
 ```
 
-### 2. Install FFmpeg
+Open `http://127.0.0.1:8000`.
 
-Option A: manual install
+## Optional Forced Alignment Runtime
 
-- Download FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html) or [Gyan.dev builds](https://www.gyan.dev/ffmpeg/builds/)
-- Extract it to something like `C:\ffmpeg`
-- Add `C:\ffmpeg\bin` to your system `Path`
-
-Check it:
+Forced alignment can run in a separate environment so the main app stays stable.
 
 ```powershell
-ffmpeg -version
+py -3.12 -m venv .venv-align
+.\.venv-align\Scripts\python.exe -m pip install --upgrade pip
+.\.venv-align\Scripts\python.exe -m pip install -r requirements_align.txt
 ```
 
-### 3. Download this project
+The app prefers healthy same-pass Whisper word timings for speed. Set this only when you want to force the older WhisperX alignment path:
 
 ```powershell
-git clone https://github.com/cgchiraggupta/toolazytoaddcaptions.git
-cd toolazytoaddcaptions
+$env:HINGLISHCAPS_PREFER_SAME_PASS_TIMING="0"
 ```
 
-### 4. Create a virtual environment
+## Frontend Development
 
 ```powershell
-py -3.12 -m venv venv
-venv\Scripts\activate
+cd frontend
+npm install
+npm run dev
 ```
 
-### 5. Install dependencies
-
-For the web app:
+To rebuild the production frontend:
 
 ```powershell
-python -m pip install --upgrade pip
-pip install -r requirements_full.txt
+cd frontend
+npm run build
 ```
 
-For command-line only usage:
+## Launch Command
 
 ```powershell
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+.\start.bat
 ```
 
-### 6. Launch the app
-
-```powershell
-python app_full.py
-```
-
-Open:
-
-```text
-http://127.0.0.1:7860
-```
-
-## Installers
-
-This repo also includes:
-
-- `install-mac.sh`
-- `install-windows.bat`
-
-These are intended to guide users into the correct setup path, but the manual instructions above are the main reference.
-
-## How to use the web app
-
-### Single video
-
-1. Open the `Single Video` tab
-2. Upload one video
-3. Choose whether you want shorter word-level caption chunks
-4. Click `Generate Captions`
-5. Download the generated `.srt` subtitle file
-
-### Batch processing
-
-1. Open the `Batch Processing` tab
-2. Upload multiple videos
-3. Choose your caption settings
-4. Click `Process All Videos`
-5. Download the ZIP file with all generated `.srt` files
-
-## Command-line usage
-
-If you prefer terminal usage:
+For Bash:
 
 ```bash
-python simple_caps.py your_video.mp4
+bash start.sh
 ```
 
-Multiple files:
+## Safety Contracts
 
-```bash
-python simple_caps.py video1.mp4 video2.mov video3.avi
-```
-
-A whole folder:
-
-```bash
-python simple_caps.py ./videos
-```
-
-With custom options:
-
-```bash
-python simple_caps.py video.mp4 --output ./captions --word-level --words 2 --offset 0.35
-```
-
-## First run note
-
-The first run downloads the model, which is roughly 1.5 GB. That run will be slower.
-
-After that, the model is cached and future runs are faster.
-
-## Troubleshooting
-
-### `tokenizers` build error or strange install failures
-
-This usually means you are using the wrong Python version.
-
-Use **Python 3.12** and recreate the virtual environment.
-
-### `ffmpeg not found`
-
-- Make sure FFmpeg is installed
-- Make sure it is added to `PATH`
-- Restart Terminal, Command Prompt, or PowerShell after installing it
-
-### `python not found`
-
-- Reinstall Python 3.12 and ensure it is added to `PATH`
-- On macOS, use `python3.12`
-- On Windows, use `py -3.12`
-
-### `ModuleNotFoundError`
-
-Install dependencies inside the active virtual environment:
-
-```bash
-pip install -r requirements_full.txt
-```
-
-### App is slow on first run
-
-This is expected because the model downloads and initializes the first time.
-
-### Out of memory or crashes
-
-- Close other heavy apps
-- Process fewer files at once
-- Make sure the machine has enough available RAM
-
-## Supported editors
-
-- CapCut
-- DaVinci Resolve
-- Adobe Premiere Pro
-- Final Cut Pro
-- Any editor that can import `.srt`
-
-## License
-
-MIT. See `LICENSE`.
+- Single video mode returns one caption file.
+- Batch mode returns one ZIP file.
+- Downloaded single captions keep the `.srt` extension.
+- Caption chunking respects max characters per line in double-line mode.
+- Caption timing rules apply universally across single and batch workflows.
+- Local virtual environments, installed node modules, videos, and generated subtitle outputs stay out of Git.

@@ -1,4 +1,5 @@
 {
+  "description": "HinglishCapsV3 custom replacement examples",
   "replacements": [
     { "pattern": "\\bvan naij\\b", "replacement": "wow, nice", "flags": "i" },
     { "pattern": "\\bpagale gai ye\\?", "replacement": "pagal hai kya ye?", "flags": "i" },

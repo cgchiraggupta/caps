@@ -74,6 +74,10 @@ DEFAULT_ENABLE_CUSTOM_REPLACEMENTS = (
 DEFAULT_CUSTOM_REPLACEMENTS_FILE = os.getenv(
     "HINGLISHCAPS_CUSTOM_REPLACEMENTS_FILE", ""
 ).strip()
+PREFER_SAME_PASS_TIMING = (
+    os.getenv("HINGLISHCAPS_PREFER_SAME_PASS_TIMING", "1").strip().lower()
+    not in {"0", "false", "no", "off"}
+)
 SUPPORTED_TRANSCRIPTION_BACKENDS = {
     "apex",
     "whisper-base",
@@ -739,6 +743,74 @@ def transcript_looks_unstable(segments: list[dict]) -> bool:
     return False
 
 
+def alternate_whisper_model_size(model_size: str) -> str | None:
+    """Return the paired Whisper model to try for unstable transcripts."""
+    if model_size == "large-v3-turbo":
+        return "large-v3"
+    if model_size == "large-v3":
+        return "large-v3-turbo"
+    return None
+
+
+def collect_faster_whisper_outputs(
+    raw_segments: list,
+    audio_duration: float,
+    custom_replacements: list[tuple[re.Pattern, str]] | None = None,
+    collect_words: bool = False,
+) -> tuple[list[dict], list[dict]]:
+    """Normalize faster-whisper segment text and optionally collect word timings."""
+    segments: list[dict] = []
+    timing_words: list[dict] = []
+
+    for segment in raw_segments:
+        if collect_words:
+            for word_info in getattr(segment, "words", None) or []:
+                word_text = str(getattr(word_info, "word", "")).strip()
+                word_start = getattr(word_info, "start", None)
+                word_end = getattr(word_info, "end", None)
+                if not word_text or word_start is None or word_end is None:
+                    continue
+
+                start_value = max(0.0, float(word_start))
+                end_value = min(float(word_end), audio_duration)
+                if end_value <= start_value:
+                    continue
+
+                timing_words.append(
+                    {
+                        "text": word_text,
+                        "start": start_value,
+                        "end": end_value,
+                    }
+                )
+
+        text = str(getattr(segment, "text", "")).strip()
+        if WHISPER_ROMANIZE_OUTPUT:
+            text = romanize_devanagari_text(text)
+            text = normalize_hinglish_roman_text(
+                text,
+                custom_replacements=custom_replacements,
+            )
+        if not text:
+            continue
+
+        start = float(getattr(segment, "start", 0.0))
+        end = float(getattr(segment, "end", start + 0.05))
+        start = max(0.0, start)
+        end = min(max(start + 0.05, end), audio_duration)
+
+        segments.append(
+            {
+                "id": len(segments),
+                "start": start,
+                "end": end,
+                "text": text,
+            }
+        )
+
+    return segments, timing_words
+
+
 def transcribe_with_whisper(
     audio_path: str,
     model_size: str,
@@ -767,33 +839,49 @@ def transcribe_with_whisper(
         return []
 
     audio_duration = get_audio_duration_seconds(audio_path)
-    segments = []
-    for i, segment in enumerate(raw_segments):
-        text = str(getattr(segment, "text", "")).strip()
-        if WHISPER_ROMANIZE_OUTPUT:
-            text = romanize_devanagari_text(text)
-            text = normalize_hinglish_roman_text(
-                text,
-                custom_replacements=custom_replacements,
-            )
-        if not text:
-            continue
-
-        start = float(getattr(segment, "start", 0.0))
-        end = float(getattr(segment, "end", start + 0.05))
-        start = max(0.0, start)
-        end = min(max(start + 0.05, end), audio_duration)
-
-        segments.append(
-            {
-                "id": len(segments),
-                "start": start,
-                "end": end,
-                "text": text,
-            }
-        )
-
+    segments, _ = collect_faster_whisper_outputs(
+        raw_segments,
+        audio_duration,
+        custom_replacements=custom_replacements,
+        collect_words=False,
+    )
     return segments
+
+
+def transcribe_with_whisper_and_words(
+    audio_path: str,
+    model_size: str,
+    enable_custom_replacements: bool | None = None,
+    custom_replacements_file: str | None = None,
+) -> tuple[list[dict], list[dict]]:
+    """Transcribe with faster-whisper and return text plus same-pass word timings."""
+    model = load_whisper_text_model(model_size)
+    custom_replacements = resolve_custom_replacement_rules(
+        enable_custom_replacements=enable_custom_replacements,
+        custom_replacements_file=custom_replacements_file,
+    )
+
+    segments_iter, _ = model.transcribe(
+        audio_path,
+        language="hi",
+        task="transcribe",
+        temperature=0.0,
+        condition_on_previous_text=False,
+        initial_prompt=DEFAULT_FASTER_WHISPER_INITIAL_PROMPT or None,
+        vad_filter=DEFAULT_FASTER_WHISPER_VAD_FILTER,
+        word_timestamps=True,
+    )
+
+    raw_segments = list(segments_iter)
+    if not raw_segments:
+        return [], []
+
+    return collect_faster_whisper_outputs(
+        raw_segments,
+        get_audio_duration_seconds(audio_path),
+        custom_replacements=custom_replacements,
+        collect_words=True,
+    )
 
 
 def transcribe(
@@ -817,38 +905,39 @@ def transcribe(
             if segments:
                 selected_model_size = model_size
 
-                if model_size == "large-v3" and transcript_looks_unstable(segments):
+                fallback_model_size = alternate_whisper_model_size(model_size)
+                if fallback_model_size and transcript_looks_unstable(segments):
                     print(
-                        "large-v3 transcript looked unstable for this clip; "
-                        "retrying with large-v3-turbo fallback."
+                        f"{model_size} transcript looked unstable for this clip; "
+                        f"retrying with {fallback_model_size} fallback."
                     )
                     try:
-                        turbo_segments = transcribe_with_whisper(
+                        fallback_segments = transcribe_with_whisper(
                             audio_path,
-                            model_size="large-v3-turbo",
+                            model_size=fallback_model_size,
                             enable_custom_replacements=enable_custom_replacements,
                             custom_replacements_file=custom_replacements_file,
                         )
                     except Exception as fallback_exc:
-                        turbo_segments = []
+                        fallback_segments = []
                         print(
-                            "large-v3-turbo fallback attempt failed: "
+                            f"{fallback_model_size} fallback attempt failed: "
                             f"{fallback_exc}"
                         )
 
-                    if turbo_segments:
+                    if fallback_segments:
                         primary_score = transcript_quality_score(segments)
-                        turbo_score = transcript_quality_score(turbo_segments)
-                        if turbo_score > primary_score + 0.05:
-                            segments = turbo_segments
-                            selected_model_size = "large-v3-turbo"
+                        fallback_score = transcript_quality_score(fallback_segments)
+                        if fallback_score > primary_score + 0.05:
+                            segments = fallback_segments
+                            selected_model_size = fallback_model_size
                             print(
-                                "Using large-v3-turbo fallback transcript "
+                                f"Using {fallback_model_size} fallback transcript "
                                 "for better stability."
                             )
                         else:
                             print(
-                                "Kept large-v3 transcript after fallback "
+                                f"Kept {model_size} transcript after fallback "
                                 "quality comparison."
                             )
 
@@ -1289,6 +1378,84 @@ def is_timing_word_coverage_sufficient(
             return False
 
     return True
+
+
+def timing_word_durations(timing_words: list[dict]) -> list[float]:
+    """Return positive durations for timing words."""
+    durations = []
+    for word_info in timing_words:
+        start = float(word_info.get("start", 0.0))
+        end = float(word_info.get("end", start))
+        duration = end - start
+        if duration > 0.0:
+            durations.append(duration)
+    return durations
+
+
+def timing_words_look_pathological(timing_words: list[dict]) -> bool:
+    """Detect word timing spans that are too uneven for readable captions."""
+    durations = timing_word_durations(timing_words)
+    if len(durations) < 4:
+        return False
+
+    median_duration = percentile(durations, 0.5)
+    long_word_limit = max(1.4, median_duration * 8.0)
+    very_long_count = sum(duration > long_word_limit for duration in durations)
+    return very_long_count > 0
+
+
+def timing_word_quality_score(
+    source_segments: list[dict], timing_words: list[dict]
+) -> float:
+    """Score timing words so cleaner timestamp sources can beat bad alignment."""
+    if not is_timing_word_coverage_sufficient(source_segments, timing_words):
+        return -1_000_000.0
+
+    source_word_count = sum(
+        len(str(segment.get("text", "")).split()) for segment in source_segments
+    )
+    source_start = float(source_segments[0].get("start", 0.0))
+    source_end = float(source_segments[-1].get("end", source_start + 0.05))
+    source_span = max(0.05, source_end - source_start)
+
+    timing_start = float(timing_words[0].get("start", 0.0))
+    timing_end = float(timing_words[-1].get("end", timing_start + 0.05))
+    timing_span = max(0.05, timing_end - timing_start)
+
+    count_delta = abs(len(timing_words) - source_word_count) / float(
+        max(1, source_word_count)
+    )
+    span_delta = abs(timing_span - source_span) / source_span
+    durations = timing_word_durations(timing_words)
+    long_duration_penalty = 0.0
+    if durations:
+        median_duration = percentile(durations, 0.5)
+        long_word_limit = max(1.4, median_duration * 8.0)
+        long_duration_penalty = sum(
+            max(0.0, duration - long_word_limit) for duration in durations
+        )
+
+    return 1.0 - count_delta - (span_delta * 0.25) - (long_duration_penalty * 0.75)
+
+
+def select_best_timing_words(
+    source_segments: list[dict],
+    candidates: list[tuple[str, list[dict]]],
+) -> tuple[str, list[dict]]:
+    """Pick the cleanest timing source from valid candidates."""
+    valid_candidates = [
+        (label, words)
+        for label, words in candidates
+        if is_timing_word_coverage_sufficient(source_segments, words)
+    ]
+    if not valid_candidates:
+        return "", []
+
+    valid_candidates.sort(
+        key=lambda candidate: timing_word_quality_score(source_segments, candidate[1]),
+        reverse=True,
+    )
+    return valid_candidates[0]
 
 
 def percentile(values: list[float], pct: float) -> float:
@@ -2056,7 +2223,8 @@ def plain_caption_text(words: list[str]) -> str:
 def format_double_line_text(words: list[str], max_chars: int) -> str:
     """Split text into one or two readable lines for double-line captions."""
     full_text = plain_caption_text(words)
-    if len(words) < 2 or len(full_text) <= math.ceil(max_chars / 2):
+    line_limit = max(1, int(max_chars))
+    if len(words) < 2 or len(full_text) <= line_limit:
         return full_text
 
     best_lines = None
@@ -2065,7 +2233,10 @@ def format_double_line_text(words: list[str], max_chars: int) -> str:
     for split_index in range(1, len(words)):
         first_line = plain_caption_text(words[:split_index])
         second_line = plain_caption_text(words[split_index:])
+        first_overflow = max(0, len(first_line) - line_limit)
+        second_overflow = max(0, len(second_line) - line_limit)
         score = (
+            first_overflow + second_overflow,
             max(len(first_line), len(second_line)),
             abs(len(first_line) - len(second_line)),
         )
@@ -2086,6 +2257,131 @@ def format_caption_text(words: list[str], caption_settings: CaptionSettings) -> 
     return format_double_line_text(words, caption_settings.max_chars)
 
 
+def caption_text_limit(caption_settings: CaptionSettings) -> int:
+    """Return the grouping limit for one caption block."""
+    line_limit = max(1, int(caption_settings.max_chars))
+    if caption_settings.lines.lower() == "single":
+        return line_limit
+    return (line_limit * 2) + 1
+
+
+def caption_words_fit(words: list[str], caption_settings: CaptionSettings) -> bool:
+    """Return True when words can fit inside the selected line layout."""
+    if not words:
+        return True
+
+    line_limit = max(1, int(caption_settings.max_chars))
+    full_text = plain_caption_text(words)
+    if caption_settings.lines.lower() == "single":
+        return len(full_text) <= line_limit
+
+    if len(full_text) <= line_limit:
+        return True
+    if len(words) == 1:
+        return True
+
+    for split_index in range(1, len(words)):
+        first_line = plain_caption_text(words[:split_index])
+        second_line = plain_caption_text(words[split_index:])
+        if len(first_line) <= line_limit and len(second_line) <= line_limit:
+            return True
+
+    return False
+
+
+def word_chunk_duration(word_chunk: list[dict]) -> float:
+    """Return the visible duration covered by a chunk of timed words."""
+    if not word_chunk:
+        return 0.0
+    return max(
+        0.0,
+        float(word_chunk[-1]["end"]) - float(word_chunk[0]["start"]),
+    )
+
+
+def word_chunk_fits(word_chunk: list[dict], caption_settings: CaptionSettings) -> bool:
+    """Return True when a timed word chunk can be displayed as one caption."""
+    return caption_words_fit(
+        [entry["text"] for entry in word_chunk],
+        caption_settings,
+    )
+
+
+def rebalance_short_trailing_chunk(
+    word_chunks: list[list[dict]], caption_settings: CaptionSettings
+) -> list[list[dict]]:
+    """Move words across the final boundary when the last caption is too short."""
+    if len(word_chunks) < 2:
+        return word_chunks
+
+    previous_chunk = word_chunks[-2]
+    trailing_chunk = word_chunks[-1]
+    trailing_gap = max(
+        0.0,
+        float(trailing_chunk[0]["start"]) - float(previous_chunk[-1]["end"]),
+    )
+    hard_pause_threshold = max(0.75, caption_settings.min_duration * 0.5)
+    if trailing_gap >= hard_pause_threshold:
+        return word_chunks
+
+    minimum_tail_duration = min(
+        caption_settings.min_duration,
+        max(1.25, caption_settings.min_duration * 0.75),
+    )
+    minimum_neighbor_duration = min(1.1, minimum_tail_duration)
+
+    if word_chunk_duration(trailing_chunk) >= minimum_tail_duration:
+        return word_chunks
+
+    merged_chunk = previous_chunk + trailing_chunk
+    if word_chunk_fits(merged_chunk, caption_settings):
+        return word_chunks[:-2] + [merged_chunk]
+
+    best_pair = None
+    best_score = None
+    for moved_word_count in range(1, len(previous_chunk)):
+        new_previous = previous_chunk[:-moved_word_count]
+        new_trailing = previous_chunk[-moved_word_count:] + trailing_chunk
+        if not new_previous:
+            continue
+        if not word_chunk_fits(new_previous, caption_settings):
+            continue
+        if not word_chunk_fits(new_trailing, caption_settings):
+            continue
+
+        previous_duration = word_chunk_duration(new_previous)
+        trailing_duration = word_chunk_duration(new_trailing)
+        if previous_duration < minimum_neighbor_duration:
+            continue
+
+        score = (
+            max(0.0, minimum_tail_duration - trailing_duration),
+            max(0.0, minimum_neighbor_duration - previous_duration),
+            abs(previous_duration - trailing_duration),
+        )
+        if best_score is None or score < best_score:
+            best_score = score
+            best_pair = (new_previous, new_trailing)
+
+    if best_pair is None:
+        return word_chunks
+
+    return word_chunks[:-2] + [best_pair[0], best_pair[1]]
+
+
+def build_caption_segment_from_words(
+    word_chunk: list[dict], index: int, caption_settings: CaptionSettings
+) -> dict:
+    """Build a caption segment dictionary from a chunk of timed words."""
+    text_words = [entry["text"] for entry in word_chunk]
+    return {
+        "id": index,
+        "start": float(word_chunk[0]["start"]),
+        "end": float(word_chunk[-1]["end"]),
+        "text": format_caption_text(text_words, caption_settings),
+    }
+
+
 def build_settings_based_chunks(
     aligned_words: list[dict], caption_settings: CaptionSettings
 ) -> list[dict]:
@@ -2094,10 +2390,16 @@ def build_settings_based_chunks(
         return []
 
     grouped_segments = []
+    max_caption_chars = caption_text_limit(caption_settings)
+    readable_max_duration = max(
+        caption_settings.min_duration + 0.75,
+        caption_settings.min_duration * 1.4,
+    )
     current_words = []
     pause_threshold = 0.18 if caption_settings.lines.lower() == "single" else 0.28
     if caption_settings.max_chars <= 20:
         pause_threshold = min(pause_threshold, 0.16)
+    hard_pause_threshold = max(0.75, caption_settings.min_duration * 0.5)
 
     for word_info in aligned_words:
         word_text = word_info["text"].strip()
@@ -2107,50 +2409,62 @@ def build_settings_based_chunks(
         if current_words:
             previous_word = current_words[-1]
             pause = max(0.0, float(word_info["start"]) - float(previous_word["end"]))
-            candidate_text = plain_caption_text(
-                [entry["text"] for entry in current_words] + [word_text]
-            )
+            candidate_words = [entry["text"] for entry in current_words] + [word_text]
             punctuation_break = previous_word["text"].rstrip().endswith((".", "?", "!"))
+            current_start = float(current_words[0]["start"])
+            current_end = float(previous_word["end"])
+            current_duration = max(0.0, current_end - current_start)
+            candidate_duration = max(0.0, float(word_info["end"]) - current_start)
+            can_keep_for_duration = current_duration < caption_settings.min_duration
+
+            over_limit = not caption_words_fit(candidate_words, caption_settings)
+            duration_break = (
+                not can_keep_for_duration
+                and candidate_duration > readable_max_duration
+            )
+            hard_pause_break = pause >= hard_pause_threshold
+            pause_break = (
+                pause >= pause_threshold
+                and (hard_pause_break or not can_keep_for_duration)
+            )
+            single_line_punctuation_break = (
+                caption_settings.lines.lower() == "single"
+                and punctuation_break
+                and not can_keep_for_duration
+            )
+            double_line_punctuation_break = (
+                punctuation_break
+                and pause >= 0.08
+                and not can_keep_for_duration
+                and len(plain_caption_text([entry["text"] for entry in current_words]))
+                >= math.ceil(max_caption_chars / 2)
+            )
 
             if (
-                len(candidate_text) > caption_settings.max_chars
-                or pause >= pause_threshold
-                or (
-                    caption_settings.lines.lower() == "single"
-                    and punctuation_break
-                )
-                or (
-                    punctuation_break
-                    and pause >= 0.08
-                    and len(plain_caption_text([entry["text"] for entry in current_words]))
-                    >= math.ceil(caption_settings.max_chars / 2)
-                )
+                over_limit
+                or duration_break
+                or pause_break
+                or single_line_punctuation_break
+                or double_line_punctuation_break
             ):
-                text_words = [entry["text"] for entry in current_words]
                 grouped_segments.append(
-                    {
-                        "id": len(grouped_segments),
-                        "start": float(current_words[0]["start"]),
-                        "end": float(current_words[-1]["end"]),
-                        "text": format_caption_text(text_words, caption_settings),
-                    }
+                    list(current_words)
                 )
                 current_words = []
 
         current_words.append(word_info)
 
     if current_words:
-        text_words = [entry["text"] for entry in current_words]
-        grouped_segments.append(
-            {
-                "id": len(grouped_segments),
-                "start": float(current_words[0]["start"]),
-                "end": float(current_words[-1]["end"]),
-                "text": format_caption_text(text_words, caption_settings),
-            }
-        )
+        grouped_segments.append(list(current_words))
 
-    return grouped_segments
+    grouped_segments = rebalance_short_trailing_chunk(
+        grouped_segments,
+        caption_settings,
+    )
+    return [
+        build_caption_segment_from_words(word_chunk, index, caption_settings)
+        for index, word_chunk in enumerate(grouped_segments)
+    ]
 
 
 def build_word_count_chunks(words: list[dict], words_per_line: int = 2) -> list[dict]:
@@ -2273,7 +2587,7 @@ def transcribe_word_level(
                     settings,
                     fps=fps,
                     max_duration=speech_ceiling,
-                    enforce_min_duration=False,
+                    enforce_min_duration=True,
                 )
                 if segments:
                     return segments
@@ -2282,35 +2596,128 @@ def transcribe_word_level(
             if fixed_word_chunks:
                 return fixed_word_chunks
 
-    source_segments = transcribe(
-        audio_path,
-        transcription_backend=backend,
-        enable_custom_replacements=enable_custom_replacements,
-        custom_replacements_file=custom_replacements_file,
-    )
+    same_pass_timing_words: list[dict] = []
+    source_segments: list[dict] = []
+    if backend.startswith("whisper-"):
+        whisper_model_size = backend.split("-", 1)[1]
+        try:
+            source_segments, same_pass_timing_words = transcribe_with_whisper_and_words(
+                audio_path,
+                model_size=whisper_model_size,
+                enable_custom_replacements=enable_custom_replacements,
+                custom_replacements_file=custom_replacements_file,
+            )
+            if source_segments:
+                selected_model_size = whisper_model_size
+                fallback_model_size = alternate_whisper_model_size(whisper_model_size)
+                if fallback_model_size and transcript_looks_unstable(source_segments):
+                    print(
+                        f"{whisper_model_size} transcript looked unstable for this clip; "
+                        f"retrying with {fallback_model_size} fallback."
+                    )
+                    try:
+                        fallback_segments, fallback_words = transcribe_with_whisper_and_words(
+                            audio_path,
+                            model_size=fallback_model_size,
+                            enable_custom_replacements=enable_custom_replacements,
+                            custom_replacements_file=custom_replacements_file,
+                        )
+                    except Exception as fallback_exc:
+                        fallback_segments = []
+                        fallback_words = []
+                        print(
+                            f"{fallback_model_size} fallback attempt failed: "
+                            f"{fallback_exc}"
+                        )
+
+                    if fallback_segments:
+                        primary_score = transcript_quality_score(source_segments)
+                        fallback_score = transcript_quality_score(fallback_segments)
+                        if fallback_score > primary_score + 0.05:
+                            source_segments = fallback_segments
+                            same_pass_timing_words = fallback_words
+                            selected_model_size = fallback_model_size
+                            print(
+                                f"Using {fallback_model_size} fallback transcript "
+                                "for better stability."
+                            )
+                        else:
+                            print(
+                                f"Kept {whisper_model_size} transcript after fallback "
+                                "quality comparison."
+                            )
+
+                print(
+                    f"Using faster-whisper ({selected_model_size}) for transcript text."
+                )
+            else:
+                print(
+                    f"faster-whisper ({whisper_model_size}) returned no segments, "
+                    "falling back to Apex transcript text."
+                )
+        except Exception as exc:
+            print(
+                f"faster-whisper ({whisper_model_size}) text backend failed, "
+                f"falling back to Apex: {exc}"
+            )
+
+    if not source_segments:
+        source_segments = transcribe_with_apex(audio_path)
+        if source_segments:
+            print("Using Apex transcript text.")
+
     if not source_segments:
         return []
 
     timing_words: list[dict] = []
-    forced_alignment_words = extract_forced_alignment_words(
-        audio_path, model_size=FORCED_ALIGNMENT_MODEL_SIZE
+    timing_candidates: list[tuple[str, list[dict]]] = []
+    same_pass_is_valid = (
+        bool(same_pass_timing_words)
+        and is_timing_word_coverage_sufficient(source_segments, same_pass_timing_words)
     )
-    if forced_alignment_words and is_timing_word_coverage_sufficient(
-        source_segments, forced_alignment_words
-    ):
-        timing_words = forced_alignment_words
-        print("Using WhisperX forced alignment for word timings.")
-    elif forced_alignment_words:
-        print(
-            "WhisperX forced alignment looked sparse for this clip; "
-            "falling back to safer timing extraction."
+    if same_pass_is_valid:
+        timing_candidates.append(
+            ("faster-whisper same-pass word timestamps", same_pass_timing_words)
         )
 
-    if not timing_words and backend.startswith("whisper-"):
+    forced_alignment_words: list[dict] = []
+    skip_forced_alignment = (
+        PREFER_SAME_PASS_TIMING
+        and same_pass_is_valid
+        and not timing_words_look_pathological(same_pass_timing_words)
+    )
+    if skip_forced_alignment:
+        print(
+            "Using same-pass word timestamps as timing candidate; "
+            "skipping WhisperX forced alignment."
+        )
+    else:
+        forced_alignment_words = extract_forced_alignment_words(
+            audio_path, model_size=FORCED_ALIGNMENT_MODEL_SIZE
+        )
+        if forced_alignment_words and is_timing_word_coverage_sufficient(
+            source_segments, forced_alignment_words
+        ):
+            timing_candidates.append(
+                ("WhisperX forced alignment", forced_alignment_words)
+            )
+        elif forced_alignment_words:
+            print(
+                "WhisperX forced alignment looked sparse for this clip; "
+                "falling back to safer timing extraction."
+            )
+
+    needs_safer_timing = (
+        not timing_candidates
+        or any(timing_words_look_pathological(words) for _, words in timing_candidates)
+    )
+
+    if needs_safer_timing and backend.startswith("whisper-"):
         whisper_model_size = backend.split("-", 1)[1]
         candidate_models = [whisper_model_size]
-        if whisper_model_size == "large-v3":
-            candidate_models.append("large-v3-turbo")
+        alternate_model_size = alternate_whisper_model_size(whisper_model_size)
+        if alternate_model_size:
+            candidate_models.append(alternate_model_size)
 
         for candidate_model_size in candidate_models:
             faster_whisper_words = extract_faster_whisper_timing_words(
@@ -2320,18 +2727,26 @@ def transcribe_word_level(
             if faster_whisper_words and is_timing_word_coverage_sufficient(
                 source_segments, faster_whisper_words
             ):
-                timing_words = faster_whisper_words
-                print(
-                    "Using faster-whisper word timestamps for word timings "
-                    f"({candidate_model_size})."
+                timing_candidates.append(
+                    (
+                        f"faster-whisper word timestamps ({candidate_model_size})",
+                        faster_whisper_words,
+                    )
                 )
-                break
 
-        if not timing_words and candidate_models:
+        if len(timing_candidates) <= (1 if forced_alignment_words else 0):
             print(
                 "faster-whisper timing coverage is still sparse; "
                 "trying legacy timing model fallback."
             )
+
+    if timing_candidates:
+        timing_label, timing_words = select_best_timing_words(
+            source_segments,
+            timing_candidates,
+        )
+        if timing_words:
+            print(f"Using {timing_label} for word timings.")
 
     if not timing_words:
         fallback_timing_words = extract_timing_words(audio_path, model_size=model_size)
@@ -2365,7 +2780,7 @@ def transcribe_word_level(
                 settings,
                 fps=fps,
                 max_duration=speech_ceiling,
-                enforce_min_duration=False,
+                enforce_min_duration=True,
             )
             if segments:
                 return segments

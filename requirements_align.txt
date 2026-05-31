@@ -1,0 +1,7 @@
+# Optional isolated forced-alignment runtime.
+# Install into .venv-align, not the main FastAPI .venv:
+#   .venv-align\Scripts\python.exe -m pip install --no-cache-dir -r requirements_align.txt
+
+whisperx==3.8.5
+nltk==3.9.4
+hf_xet==1.5.0

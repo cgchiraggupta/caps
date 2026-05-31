@@ -1,3 +1,5 @@
+"""HinglishCapsV3 isolated WhisperX forced-alignment worker."""
+
 import argparse
 import json
 import os
